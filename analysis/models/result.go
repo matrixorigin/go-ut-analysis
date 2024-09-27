@@ -18,6 +18,8 @@ func NewResult(e Event) *Result {
 	return &Result{
 		Name:    e.Test,
 		StartAt: e.Time,
+		EndAt:   e.Time,
+		Result:  ActionFail,
 		Outputs: make([]string, 0, 100),
 	}
 }

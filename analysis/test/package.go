@@ -27,6 +27,8 @@ func NewPackage(e models.Event) *Package {
 	return &Package{
 		Name:    e.Package,
 		StartAt: e.Time,
+		EndAt:   e.Time,
+		Result:  models.ActionFail,
 		tests:   make(map[string]*models.Result, 10),
 		records: make(models.Results, 0, 10),
 		succeed: make(models.Results, 0, 10),
@@ -47,7 +49,6 @@ func (p *Package) ProcessEvent(e models.Event) {
 		if e.Test != "" {
 			p.addResultOutput(e)
 			p.tests[e.Test].Finish(e)
-			p.splitPush(p.tests[e.Test])
 			break
 		}
 		p.finish(e)
@@ -102,6 +103,24 @@ func (p *Package) Skipped() models.Results {
 	return p.skipped
 }
 
+func (p *Package) Finish() error {
+	for _, t := range p.records {
+		p.splitPush(t)
+	}
+	return nil
+}
+
+func (p *Package) splitPush(t *models.Result) {
+	switch t.Result {
+	case models.ActionFail:
+		p.failed = append(p.failed, t)
+	case models.ActionSkip:
+		p.skipped = append(p.skipped, t)
+	case models.ActionPass:
+		p.succeed = append(p.succeed, t)
+	}
+}
+
 func (p *Package) addResultOutput(e models.Event) {
 	t := e.Test
 	if ind := strings.LastIndexByte(t, '/'); ind != -1 {
@@ -121,22 +140,4 @@ func (p *Package) finish(e models.Event) {
 	p.EndAt = e.Time
 	p.Result = e.Action
 	p.Elapsed = e.Elapsed
-	for i := 0; i < len(p.records); i++ {
-		// if not result, set default failed
-		if p.records[i].Result == "" {
-			p.records[i].Result = models.ActionFail
-			p.failed = append(p.failed, p.records[i])
-		}
-	}
-}
-
-func (p *Package) splitPush(result *models.Result) {
-	switch result.Result {
-	case models.ActionPass:
-		p.succeed = append(p.succeed, result)
-	case models.ActionFail:
-		p.failed = append(p.failed, result)
-	case models.ActionSkip:
-		p.skipped = append(p.skipped, result)
-	}
 }

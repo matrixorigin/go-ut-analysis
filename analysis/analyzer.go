@@ -14,6 +14,8 @@ type Analyzer interface {
 	Success() []Packager
 	Fail() []Packager
 	Skipped() []Packager
+
+	Finish() error
 }
 
 type Packager interface {
@@ -29,4 +31,6 @@ type Packager interface {
 	Success() models.Results
 	Fail() models.Results
 	Skipped() models.Results
+
+	Finish() error
 }

@@ -35,7 +35,6 @@ func (ps *Packages) ProcessEvent(e models.Event) {
 		ps.packages[e.Package] = p
 	case models.ActionFail, models.ActionPass, models.ActionSkip, models.ActionRun, models.ActionOutput:
 		ps.packages[e.Package].ProcessEvent(e)
-		ps.splitPush(ps.packages[e.Package])
 	default:
 		panic("unsupported action")
 	}
@@ -70,6 +69,18 @@ func (ps *Packages) Fail() []analysis.Packager {
 
 func (ps *Packages) Skipped() []analysis.Packager {
 	return ps.skipped
+}
+
+func (ps *Packages) Finish() error {
+	for _, record := range ps.records {
+		err := record.Finish()
+		if err != nil {
+			return err
+		}
+		ps.splitPush(record)
+	}
+	return nil
+
 }
 
 func (ps *Packages) splitPush(p *Package) {

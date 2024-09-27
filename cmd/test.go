@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
-	"path/filepath"
 	"slices"
-	"sync"
 
 	"github.com/spf13/cobra"
 
@@ -25,6 +23,8 @@ func initTestCommand() *cobra.Command {
 			first := util.MustGetIntFlag(cmd, "first")
 			showSuccess := util.MustGetBoolFlag(cmd, "success")
 			showFailed := util.MustGetBoolFlag(cmd, "failed")
+			showSkipped := util.MustGetBoolFlag(cmd, "skipped")
+			showNoTest := util.MustGetBoolFlag(cmd, "no-test")
 
 			reportPath := util.MustGetStringFlag(cmd, "report-path")
 			stdout := util.MustGetBoolFlag(cmd, "stdout")
@@ -50,6 +50,10 @@ func initTestCommand() *cobra.Command {
 				}
 				analyzer.ProcessEvent(*event)
 			}
+			err := analyzer.Finish()
+			if err != nil {
+				return err
+			}
 			// print top <first> Time-consuming UT Tests
 			if first > 0 {
 				mirrors := slices.Clone(bases)
@@ -61,6 +65,31 @@ func initTestCommand() *cobra.Command {
 					printutils.WithWriters(mirrors...),
 				)
 			}
+			if showNoTest {
+				skipped := analyzer.Skipped()
+				mirrors := slices.Clone(bases)
+				if len(reportPath) != 0 {
+					skipF := util.MustCreateFile(reportPath, "no-test.txt")
+					mirrors = append(mirrors, skipF)
+				}
+				printutils.PrintPackages(
+					skipped,
+					"No UT Test Packages",
+					printutils.WithWriters(mirrors...))
+			}
+			if showSkipped {
+				skipped := make(models.Results, 0, 100)
+				all := analyzer.First(-1)
+				for _, result := range all {
+					skipped = append(skipped, result.Skipped()...)
+				}
+				mirrors := slices.Clone(bases)
+				if len(reportPath) != 0 {
+					topF := util.MustCreateFile(reportPath, "skipped.txt")
+					mirrors = append(mirrors, topF)
+				}
+				printutils.PrintTests(skipped, "Skipped Tests", printutils.WithWriters(mirrors...))
+			}
 			if showSuccess {
 				success := analyzer.Success()
 				mirrors := slices.Clone(bases)
@@ -71,31 +100,7 @@ func initTestCommand() *cobra.Command {
 				printutils.PrintPackages(success, "Successful UT Packages", printutils.WithWriters(mirrors...))
 			}
 			if showFailed {
-				failed := analyzer.Fail()
-				failedResultPath := filepath.Join(reportPath, "failed")
-				mirrors := slices.Clone(bases)
-				if len(reportPath) != 0 {
-					topF := util.MustCreateFile(failedResultPath, "result.txt")
-					mirrors = append(mirrors, topF)
-				}
-				printutils.PrintPackages(failed, "Failed UT Packages", printutils.WithWriters(mirrors...))
-
-				failedTestOutputsPath := filepath.Join(failedResultPath, "outputs")
-				wait := sync.WaitGroup{}
-				for _, p := range failed {
-					wait.Add(1)
-					go func() {
-						defer wait.Done()
-						err := printutils.WriteTestArrayOutputs(
-							p.Fail(),
-							filepath.Join(failedTestOutputsPath, filepath.Base(p.GetName())),
-						)
-						if err != nil {
-							panic(err)
-						}
-					}()
-				}
-				wait.Wait()
+				reportFailed(analyzer, bases, reportPath)
 			}
 
 			return nil
@@ -108,6 +113,8 @@ func initTestCommand() *cobra.Command {
 	testCmd.Flags().Bool("stdout", true, "write report to stdout")
 	testCmd.Flags().Bool("success", true, "show success ut cases")
 	testCmd.Flags().Bool("failed", true, "show failed ut cases")
+	testCmd.Flags().Bool("skipped", true, "show skipped ut cases")
+	testCmd.Flags().Bool("no-test", true, "show test files packages")
 
 	return testCmd
 }
