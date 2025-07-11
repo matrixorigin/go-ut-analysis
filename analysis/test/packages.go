@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/matrixorigin/go-ut-analysis/analysis"
@@ -36,7 +37,7 @@ func (ps *Packages) ProcessEvent(e models.Event) {
 	case models.ActionFail, models.ActionPass, models.ActionSkip, models.ActionRun, models.ActionOutput:
 		ps.packages[e.Package].ProcessEvent(e)
 	default:
-		panic("unsupported action")
+		fmt.Printf("Unsupported event: %s, will ignore it\n", e.Action)
 	}
 }
 
